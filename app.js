@@ -1,370 +1,391 @@
+const SUPABASE_URL = "https://dnvobmkryzyobnxsibmk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_5fRZO99faxkHEQ_IupqSAQ_VkUFX9Oi";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = selector => document.querySelector(selector);
 
-const usersKey = "kindle-complete-users";
-const sessionKey = "kindle-complete-session";
-
-const fires = [
-  { id: "orange", name: "Classic fire", milestone: 0, color: "orange" },
-  { id: "blue", name: "Blue fire", milestone: 10, color: "blue" },
-  { id: "purple", name: "Purple fire", milestone: 50, color: "purple" },
-  { id: "white", name: "White fire", milestone: 100, color: "white" },
-  { id: "rainbow", name: "Rainbow fire", milestone: 1000, color: "rainbow" }
-];
-
-const badges = [
-  { days: 1, icon: "🌱", name: "First Spark" },
-  { days: 7, icon: "⚡", name: "Week Warrior" },
-  { days: 30, icon: "🏆", name: "Monthly Master" },
-  { days: 100, icon: "💎", name: "Centurion" },
-  { days: 1000, icon: "👑", name: "Legend" }
-];
-
-let user = null;
-
-function getToday() {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-function differenceInDays(firstDate, secondDate) {
-  const first = new Date(firstDate + "T00:00:00");
-  const second = new Date(secondDate + "T00:00:00");
-
-  return Math.round((second - first) / 86400000);
-}
-
-function getUsers() {
-  return JSON.parse(localStorage.getItem(usersKey) || "{}");
-}
-
-function saveUser() {
-  const users = getUsers();
-  users[user.username] = user;
-  localStorage.setItem(usersKey, JSON.stringify(users));
-}
-
-function newUser(username, password) {
-  return {
-    username,
-    password,
-    streak: 0,
-    xp: 0,
-    freezes: 1,
-    lastCheckin: null,
-    checkedDates: [],
-    moods: {},
-    notes: {},
-    goal: "",
-    equippedFire: "orange",
-    unlockedFires: ["orange"],
-    friend: "",
-    sound: true,
-    recoveryReady: false
-  };
-}
+let sessionUser = null;
+let profile = null;
+let checkins = [];
+let friends = [];
+let requests = [];
 
 function showToast(message) {
   const toast = $("#toast");
-
   toast.textContent = message;
   toast.classList.remove("hidden");
-
-  setTimeout(() => {
-    toast.classList.add("hidden");
-  }, 3500);
+  setTimeout(() => toast.classList.add("hidden"), 3500);
 }
 
-function playSuccessSound() {
-  if (!user.sound) return;
-
-  const audio = new AudioContext();
-  const sound = audio.createOscillator();
-  const volume = audio.createGain();
-
-  sound.frequency.value = 660;
-  volume.gain.setValueAtTime(.08, audio.currentTime);
-  volume.gain.exponentialRampToValueAtTime(.001, audio.currentTime + .25);
-
-  sound.connect(volume);
-  volume.connect(audio.destination);
-  sound.start();
-  sound.stop(audio.currentTime + .25);
+function setError(id, message) {
+  $(id).textContent = message || "";
 }
 
-function openApp() {
-  $("#authScreen").classList.add("hidden");
-  $("#appScreen").classList.remove("hidden");
+function fireForStreak(streak) {
+  if (streak >= 1000) return "rainbow";
+  if (streak >= 100) return "white";
+  if (streak >= 50) return "purple";
+  if (streak >= 10) return "blue";
+  return "orange";
+}
+
+function fireName(fire) {
+  return {
+    orange: "Classic fire",
+    blue: "Blue fire",
+    purple: "Purple fire",
+    white: "White fire",
+    rainbow: "Rainbow fire"
+  }[fire];
+}
+
+function avatarHTML(person, className = "") {
+  return `
+    <div class="avatar ${person.avatar_hair || "short"} ${person.avatar_outfit || "hoodie"} ${className}"
+      style="--avatar-color: ${person.avatar_color || "#f05a2a"}"></div>
+  `;
+}
+
+async function loadProfile() {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", sessionUser.id)
+    .single();
+
+  if (error) {
+    showToast("Could not load your profile.");
+    return;
+  }
+
+  profile = data;
+}
+
+async function loadCheckins() {
+  const { data } = await supabase
+    .from("checkins")
+    .select("checkin_date")
+    .eq("user_id", sessionUser.id);
+
+  checkins = data || [];
+}
+
+async function loadFriends() {
+  const { data } = await supabase
+    .from("friend_requests")
+    .select("*")
+    .or(`requester_id.eq.${sessionUser.id},receiver_id.eq.${sessionUser.id}`);
+
+  const allRequests = data || [];
+  const ids = [...new Set(
+    allRequests.map(item =>
+      item.requester_id === sessionUser.id ? item.receiver_id : item.requester_id
+    )
+  )];
+
+  let profiles = [];
+
+  if (ids.length) {
+    const result = await supabase
+      .from("profiles")
+      .select("*")
+      .in("id", ids);
+
+    profiles = result.data || [];
+  }
+
+  const findProfile = id => profiles.find(item => item.id === id);
+
+  friends = allRequests
+    .filter(item => item.status === "accepted")
+    .map(item => findProfile(item.requester_id === sessionUser.id ? item.receiver_id : item.requester_id))
+    .filter(Boolean);
+
+  requests = allRequests
+    .filter(item => item.status === "pending" && item.receiver_id === sessionUser.id)
+    .map(item => ({ ...item, person: findProfile(item.requester_id) }))
+    .filter(item => item.person);
+}
+
+async function refreshApp() {
+  await loadProfile();
+  await Promise.all([loadCheckins(), loadFriends()]);
   render();
 }
 
 function render() {
-  user.equippedFire ||= "orange";
-  user.unlockedFires ||= ["orange"];
-  user.moods ||= {};
-  user.notes ||= {};
-  user.checkedDates ||= [];
-  user.goal ||= "";
+  if (!profile) return;
 
-  document.body.className = `fire-${user.equippedFire}`;
+  const checkedToday = checkins.some(item => item.checkin_date === localDate());
+  const selectedFire = profile.equipped_fire || "orange";
+  const unlockedFire = fireForStreak(profile.streak);
 
-  $("#nameText").textContent = user.username;
-  $("#todayText").textContent = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric"
-  }).format(new Date());
+  $("#displayName").textContent = profile.username;
+  $("#goalText").textContent = profile.bio || "One small action is all it takes.";
+  $("#streakNumber").textContent = profile.streak;
+  $("#xpNumber").textContent = profile.xp;
+  $("#levelNumber").textContent = Math.floor(profile.xp / 100) + 1;
+  $("#xpBar").style.width = `${profile.xp % 100}%`;
 
-  $("#streakNumber").textContent = user.streak;
-  $("#freezeNumber").textContent = user.freezes;
-  $("#goalInput").value = user.goal;
+  $("#streakFlame").className = `streak-flame fire-${selectedFire}`;
+  $("#fireName").textContent = `${fireName(unlockedFire)} unlocked`;
 
-  const today = getToday();
-  const checkedIn = user.lastCheckin === today;
-  const missedDays = user.lastCheckin && differenceInDays(user.lastCheckin, today) > 1;
-
-  $("#streakMessage").textContent = checkedIn
+  $("#streakMessage").textContent = checkedToday
     ? "You showed up today. Amazing work!"
-    : user.streak
-      ? "Your spark is ready for today."
-      : "Your streak is waiting for you.";
+    : "Your spark is ready for today.";
 
-  $("#checkinTitle").textContent = checkedIn ? "You did it today!" : "Ready when you are.";
-  $("#checkinDescription").textContent = checkedIn
-    ? "Come back tomorrow to keep your momentum going."
-    : user.goal
-      ? `Today's goal: ${user.goal}`
-      : "Take a moment and add today to your story.";
+  $("#checkinHeading").textContent = checkedToday ? "You did it today!" : "Ready when you are.";
+  $("#checkinText").textContent = checkedToday
+    ? "Come back tomorrow to protect your streak."
+    : "Take a moment and add today to your story.";
 
-  $("#checkinButton").disabled = checkedIn;
-  $("#checkinButton").textContent = checkedIn
-    ? "✓ Today is complete"
-    : "🔥 Add to daily streak";
+  $("#checkinButton").disabled = checkedToday;
+  $("#checkinButton").textContent = checkedToday ? "✓ Today is complete" : "🔥 Check in today";
 
-  $("#recoveryCard").classList.toggle(
-    "hidden",
-    !missedDays || checkedIn || user.recoveryReady || user.freezes > 0
-  );
-
-  const level = Math.floor(user.xp / 100) + 1;
-  const currentLevelXp = user.xp % 100;
-
-  $("#levelNumber").textContent = level;
-  $("#xpNumber").textContent = user.xp;
-  $("#xpBar").style.width = `${currentLevelXp}%`;
-
-  $("#soundButton").textContent = `Sound: ${user.sound ? "on" : "off"}`;
-  $("#dailyNote").value = user.notes[today] || "";
-
-  renderMoods();
-  renderWeek();
-  renderFires();
-  renderBadges();
+  $("#openMyProfile").innerHTML = avatarHTML(profile);
   renderCalendar();
-  renderFriend();
-
-  saveUser();
-}
-
-function renderMoods() {
-  const todayMood = user.moods[getToday()];
-
-  document.querySelectorAll(".mood").forEach(button => {
-    button.classList.toggle("selected", button.dataset.mood === todayMood);
-  });
-}
-
-function renderWeek() {
-  const today = new Date();
-  const monday = new Date(today);
-  const mondayOffset = (today.getDay() + 6) % 7;
-
-  monday.setDate(today.getDate() - mondayOffset);
-
-  const names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
-
-  $("#week").innerHTML = names.map((name, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
-
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    const complete = user.checkedDates.includes(key);
-    const isToday = key === getToday();
-
-    return `
-      <div class="day ${complete ? "done" : ""} ${isToday ? "today" : ""}">
-        <div class="day-name">${name}</div>
-        <div class="day-dot">${complete ? "✓" : date.getDate()}</div>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderFires() {
-  $("#fires").innerHTML = fires.map(fire => {
-    const unlocked = user.streak >= fire.milestone || user.unlockedFires.includes(fire.id);
-    const equipped = user.equippedFire === fire.id;
-
-    return `
-      <article class="fire-card ${unlocked ? "" : "locked"} ${equipped ? "equipped" : ""}">
-        <span class="fire-preview ${fire.color}">🔥</span>
-        <strong>${fire.name}</strong>
-        <small>${fire.milestone === 0 ? "Starter reward" : `${fire.milestone} day reward`}</small>
-        <button data-fire="${fire.id}" ${unlocked ? "" : "disabled"}>
-          ${equipped ? "Equipped" : unlocked ? "Equip" : "Locked"}
-        </button>
-      </article>
-    `;
-  }).join("");
-}
-
-function renderBadges() {
-  $("#badges").innerHTML = badges.map(badge => `
-    <div class="badge ${user.streak >= badge.days ? "earned" : ""}">
-      ${badge.icon} ${badge.name}<br>
-      <small>${badge.days} days</small>
-    </div>
-  `).join("");
+  renderFriends();
+  renderProfileEditor();
 }
 
 function renderCalendar() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const days = new Date(year, month + 1, 0).getDate();
+  const dates = checkins.map(item => item.checkin_date);
 
-  $("#calendar").innerHTML = Array.from({ length: daysInMonth }, (_, index) => {
+  $("#calendar").innerHTML = Array.from({ length: days }, (_, index) => {
     const day = index + 1;
-    const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-    return `
-      <div class="calendar-day ${user.checkedDates.includes(key) ? "done" : ""}">
-        ${day}
-      </div>
-    `;
+    return `<div class="calendar-day ${dates.includes(date) ? "done" : ""}">${day}</div>`;
   }).join("");
 }
 
-function renderFriend() {
-  if (user.friend) {
-    $("#friendTitle").textContent = `${user.friend}'s challenge`;
-    $("#friendText").textContent = `You and ${user.friend} are aiming for five check-ins this week. Keep your spark alive!`;
-    $("#friendName").value = user.friend;
-  }
+function personRow(person, buttonText, buttonAction) {
+  return `
+    <article class="person-row">
+      ${avatarHTML(person, "person-avatar")}
+      <div class="person-info">
+        <strong>@${person.username}</strong>
+        <small>${person.streak} day streak · Level ${Math.floor(person.xp / 100) + 1}</small>
+      </div>
+      <button class="small-button" data-profile="${person.id}">View</button>
+      ${buttonText ? `<button class="small-button" data-action="${buttonAction}" data-id="${person.id}">${buttonText}</button>` : ""}
+    </article>
+  `;
 }
 
-function unlockRewards() {
-  fires.forEach(fire => {
-    if (user.streak >= fire.milestone && !user.unlockedFires.includes(fire.id)) {
-      user.unlockedFires.push(fire.id);
-      showToast(`🎁 You unlocked ${fire.name}!`);
+function renderFriends() {
+  $("#requestsList").innerHTML = requests.length
+    ? requests.map(item => personRow(item.person, "Accept", `accept:${item.id}`)).join("")
+    : `<p class="muted">No friend requests yet.</p>`;
+
+  $("#friendsList").innerHTML = friends.length
+    ? friends.map(person => personRow(person)).join("")
+    : `<p class="muted">Search for a username to add your first friend.</p>`;
+}
+
+function renderProfileEditor() {
+  const fire = profile.equipped_fire || "orange";
+
+  $("#myProfilePreview").className = `profile-preview bg-${profile.profile_background}`;
+  $("#myProfilePreview").innerHTML = `
+    ${avatarHTML(profile)}
+    <h2>@${profile.username}</h2>
+    <p>${profile.bio || "No bio yet — make your profile yours!"}</p>
+    <p><strong>🔥 ${profile.streak} day streak</strong></p>
+  `;
+
+  $("#profileBackground").value = profile.profile_background;
+  $("#avatarColor").value = profile.avatar_color;
+  $("#avatarHair").value = profile.avatar_hair;
+  $("#avatarOutfit").value = profile.avatar_outfit;
+  $("#equippedFire").value = fire;
+  $("#profileBio").value = profile.bio;
+}
+
+function localDate() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+async function checkIn() {
+  const { data, error } = await supabase.rpc("check_in_today");
+
+  if (error) {
+    showToast(error.message);
+    return;
+  }
+
+  if (data?.[0]?.already_checked_in) {
+    showToast("You already checked in today.");
+    return;
+  }
+
+  showToast("🔥 Streak updated! You earned 25 XP.");
+  await refreshApp();
+}
+
+async function searchUsers() {
+  const username = $("#searchUsername").value.trim();
+
+  if (!username) return;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .ilike("username", `%${username}%`)
+    .neq("id", sessionUser.id)
+    .limit(10);
+
+  if (error) {
+    showToast("Could not search profiles.");
+    return;
+  }
+
+  $("#searchResults").innerHTML = data.length
+    ? data.map(person => personRow(person, "Add friend", `add:${person.id}`)).join("")
+    : `<p class="muted">No usernames matched that search.</p>`;
+}
+
+async function sendFriendRequest(personId) {
+  const { error } = await supabase
+    .from("friend_requests")
+    .insert({
+      requester_id: sessionUser.id,
+      receiver_id: personId
+    });
+
+  showToast(error ? "That request could not be sent." : "Friend request sent!");
+}
+
+async function acceptRequest(requestId) {
+  const { error } = await supabase
+    .from("friend_requests")
+    .update({ status: "accepted" })
+    .eq("id", requestId);
+
+  if (error) {
+    showToast("Could not accept that request.");
+    return;
+  }
+
+  showToast("You are now friends! ✨");
+  await refreshApp();
+}
+
+async function openProfile(id) {
+  let person = friends.find(friend => friend.id === id);
+
+  if (!person) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    person = data;
+  }
+
+  if (!person) return;
+
+  $("#modalContent").innerHTML = `
+    <section class="profile-preview bg-${person.profile_background}">
+      ${avatarHTML(person)}
+      <h2>@${person.username}</h2>
+      <p>${person.bio || "This person has not written a bio yet."}</p>
+      <p><strong>🔥 ${person.streak} day streak · Level ${Math.floor(person.xp / 100) + 1}</strong></p>
+    </section>
+  `;
+
+  $("#profileModal").classList.remove("hidden");
+}
+
+async function saveProfile() {
+  const chosenFire = $("#equippedFire").value;
+  const requiredStreak = {
+    orange: 0,
+    blue: 10,
+    purple: 50,
+    white: 100,
+    rainbow: 1000
+  }[chosenFire];
+
+  if (profile.streak < requiredStreak) {
+    showToast(`Keep your streak going to unlock ${fireName(chosenFire)}.`);
+    return;
+  }
+
+  const updates = {
+    profile_background: $("#profileBackground").value,
+    avatar_color: $("#avatarColor").value,
+    avatar_hair: $("#avatarHair").value,
+    avatar_outfit: $("#avatarOutfit").value,
+    equipped_fire: chosenFire,
+    bio: $("#profileBio").value.trim()
+  };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update(updates)
+    .eq("id", sessionUser.id);
+
+  if (error) {
+    showToast("Profile could not be saved.");
+    return;
+  }
+
+  showToast("Profile saved!");
+  await refreshApp();
+}
+
+$("#loginForm").onsubmit = async event => {
+  event.preventDefault();
+  setError("#loginError", "");
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: $("#loginEmail").value.trim(),
+    password: $("#loginPassword").value
+  });
+
+  if (error) setError("#loginError", error.message);
+};
+
+$("#signupForm").onsubmit = async event => {
+  event.preventDefault();
+  setError("#signupError", "");
+
+  const username = $("#signupUsername").value.trim();
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (existing) {
+    setError("#signupError", "That username is already taken.");
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email: $("#signupEmail").value.trim(),
+    password: $("#signupPassword").value,
+    options: {
+      data: { username }
     }
   });
 
-  if (user.streak > 0 && user.streak % 7 === 0) {
-    user.freezes += 1;
-    showToast("🎁 Mystery box: you earned a streak freeze!");
-  }
-}
-
-function checkIn() {
-  const today = getToday();
-
-  if (user.lastCheckin === today) return;
-
-  const missedDays = user.lastCheckin && differenceInDays(user.lastCheckin, today) > 1;
-  let protectedStreak = false;
-
-  if (missedDays && user.freezes > 0) {
-    user.freezes -= 1;
-    protectedStreak = true;
-    showToast("❄️ A streak freeze protected your streak!");
-  }
-
-  if (missedDays && user.freezes === 0 && !user.recoveryReady && !protectedStreak) {
-    $("#recoveryCard").classList.remove("hidden");
-    showToast("Complete the recovery quest or your streak will restart.");
+  if (error) {
+    setError("#signupError", error.message);
     return;
   }
 
-  if (!user.lastCheckin) {
-    user.streak = 1;
-  } else if (
-    differenceInDays(user.lastCheckin, today) === 1 ||
-    protectedStreak ||
-    user.recoveryReady
-  ) {
-    user.streak += 1;
-  } else {
-    user.streak = 1;
+  if (!data.session) {
+    setError("#signupError", "Check your email to confirm your account, then log in.");
   }
-
-  user.recoveryReady = false;
-  user.lastCheckin = today;
-  user.xp += 25;
-  user.checkedDates = [...new Set([...user.checkedDates, today])];
-
-  unlockRewards();
-  saveUser();
-  playSuccessSound();
-
-  const surprises = [
-    "Your consistency is becoming your superpower.",
-    "A small step today creates a stronger tomorrow.",
-    "You showed up. That is worth celebrating.",
-    "Your future self is proud of this moment."
-  ];
-
-  $("#surpriseBox").innerHTML = `
-    <strong>✨ Daily surprise!</strong><br>
-    ${surprises[Math.floor(Math.random() * surprises.length)]}
-  `;
-
-  $("#surpriseBox").classList.remove("hidden");
-
-  showToast("🔥 Streak updated! You earned 25 XP.");
-  render();
-}
-
-$("#loginForm").onsubmit = event => {
-  event.preventDefault();
-
-  const username = $("#loginUsername").value.trim();
-  const password = $("#loginPassword").value;
-  const users = getUsers();
-
-  if (!users[username] || users[username].password !== password) {
-    $("#loginError").textContent = "That username or password does not match.";
-    return;
-  }
-
-  user = users[username];
-  localStorage.setItem(sessionKey, username);
-  openApp();
-};
-
-$("#signupForm").onsubmit = event => {
-  event.preventDefault();
-
-  const username = $("#signupUsername").value.trim();
-  const password = $("#signupPassword").value;
-  const users = getUsers();
-
-  if (users[username]) {
-    $("#signupError").textContent = "That username is already taken.";
-    return;
-  }
-
-  user = newUser(username, password);
-  users[username] = user;
-
-  localStorage.setItem(usersKey, JSON.stringify(users));
-  localStorage.setItem(sessionKey, username);
-
-  openApp();
 };
 
 $("#showSignup").onclick = () => {
@@ -377,93 +398,71 @@ $("#showLogin").onclick = () => {
   $("#loginView").classList.remove("hidden");
 };
 
-$("#logoutButton").onclick = () => {
-  localStorage.removeItem(sessionKey);
-  user = null;
-
-  $("#appScreen").classList.add("hidden");
-  $("#authScreen").classList.remove("hidden");
-};
-
 $("#checkinButton").onclick = checkIn;
+$("#searchButton").onclick = searchUsers;
+$("#saveProfile").onclick = saveProfile;
+$("#openMyProfile").onclick = () => showPage("profile");
+$("#closeModal").onclick = () => $("#profileModal").classList.add("hidden");
 
-$("#questButton").onclick = () => {
-  user.recoveryReady = true;
-  saveUser();
+$("#searchResults").onclick = async event => {
+  const profileButton = event.target.closest("[data-profile]");
+  const actionButton = event.target.closest("[data-action]");
 
-  $("#recoveryCard").classList.add("hidden");
-  showToast("✦ Quest complete! Your streak can now be restored.");
+  if (profileButton) await openProfile(profileButton.dataset.profile);
+
+  if (actionButton?.dataset.action.startsWith("add:")) {
+    await sendFriendRequest(actionButton.dataset.id);
+  }
 };
 
-$("#soundButton").onclick = () => {
-  user.sound = !user.sound;
-  saveUser();
-  render();
+$("#requestsList").onclick = async event => {
+  const profileButton = event.target.closest("[data-profile]");
+  const actionButton = event.target.closest("[data-action]");
+
+  if (profileButton) await openProfile(profileButton.dataset.profile);
+
+  if (actionButton?.dataset.action.startsWith("accept:")) {
+    await acceptRequest(actionButton.dataset.action.split(":")[1]);
+  }
 };
 
-$("#moodButtons").onclick = event => {
-  const button = event.target.closest("[data-mood]");
-
-  if (!button) return;
-
-  user.moods[getToday()] = button.dataset.mood;
-  saveUser();
-
-  renderMoods();
-  showToast("Mood saved!");
+$("#friendsList").onclick = async event => {
+  const button = event.target.closest("[data-profile]");
+  if (button) await openProfile(button.dataset.profile);
 };
 
-$("#saveNote").onclick = () => {
-  user.notes[getToday()] = $("#dailyNote").value.trim();
-  saveUser();
+$("#logoutButton").onclick = () => supabase.auth.signOut();
 
-  showToast("Your note is saved.");
-};
-
-$("#saveGoal").onclick = () => {
-  user.goal = $("#goalInput").value.trim();
-  saveUser();
-
-  showToast("Daily goal saved!");
-  render();
-};
-
-$("#fires").onclick = event => {
-  const button = event.target.closest("[data-fire]");
-
-  if (!button || button.disabled) return;
-
-  user.equippedFire = button.dataset.fire;
-  saveUser();
-
-  render();
-  showToast("🔥 Fire equipped!");
-};
-
-$("#saveFriend").onclick = () => {
-  user.friend = $("#friendName").value.trim();
-  saveUser();
-
-  renderFriend();
-  showToast(user.friend ? `Challenge saved with ${user.friend}!` : "Friend challenge cleared.");
-};
-
-document.querySelectorAll(".tab").forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll(".tab").forEach(button => {
-      button.classList.remove("active");
-    });
-
-    tab.classList.add("active");
-
-    $("#todayTab").classList.toggle("hidden", tab.dataset.tab !== "today");
-    $("#journeyTab").classList.toggle("hidden", tab.dataset.tab !== "journey");
-  };
+document.querySelectorAll(".nav-button").forEach(button => {
+  button.onclick = () => showPage(button.dataset.page);
 });
 
-const savedSession = localStorage.getItem(sessionKey);
+function showPage(page) {
+  document.querySelectorAll(".nav-button").forEach(button => {
+    button.classList.toggle("active", button.dataset.page === page);
+  });
 
-if (savedSession && getUsers()[savedSession]) {
-  user = getUsers()[savedSession];
-  openApp();
+  $("#homePage").classList.toggle("hidden", page !== "home");
+  $("#friendsPage").classList.toggle("hidden", page !== "friends");
+  $("#profilePage").classList.toggle("hidden", page !== "profile");
 }
+
+supabase.auth.onAuthStateChange(async (_event, session) => {
+  sessionUser = session?.user || null;
+
+  $("#authScreen").classList.toggle("hidden", Boolean(sessionUser));
+  $("#appScreen").classList.toggle("hidden", !sessionUser);
+
+  if (sessionUser) await refreshApp();
+});
+
+(async () => {
+  const { data } = await supabase.auth.getSession();
+
+  if (data.session) {
+    sessionUser = data.session.user;
+    $("#authScreen").classList.add("hidden");
+    $("#appScreen").classList.remove("hidden");
+    await refreshApp();
+  }
+})();
