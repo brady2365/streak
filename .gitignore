@@ -1,3 +1,18 @@
+# System files
 .DS_Store
 Thumbs.db
+
+# Editor settings
+.vscode/
+.idea/
+
+# Dependencies
 node_modules/
+
+# Environment variables and secret keys
+.env
+.env.local
+
+# Build files
+dist/
+build/
