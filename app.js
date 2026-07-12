@@ -527,3 +527,26 @@ supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     await refreshApp();
   }
 })();
+$("#resendConfirmation").onclick = async () => {
+  const email = $("#signupEmail").value.trim();
+
+  if (!email) {
+    setError("#signupError", "Enter the same email address first.");
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: "https://brady2365.github.io/streak/"
+    }
+  });
+
+  if (error) {
+    setError("#signupError", error.message);
+    return;
+  }
+
+  setError("#signupError", "A new confirmation email was sent. Check your inbox and spam folder.");
+};
