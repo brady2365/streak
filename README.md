@@ -1,44 +1,64 @@
 # Kindle — Daily Streak Tracker
 
-A simple daily habit tracker that lets people create an account, log in, and increase their streak once per day.
+A fun daily habit tracker where users can create an account, log in, build daily streaks, unlock fire rewards, earn badges, and track their progress.
 
-## How to run it
+## Features
 
-1. Download or clone this project.
-2. Open `index.html` in a web browser.
-3. Create an account and click the daily check-in button.
+- Username and password signup/login
+- Daily streak counter
+- Only one check-in per day
+- XP and levels
+- Daily goals
+- Mood check-ins
+- Daily notes
+- Weekly progress tracker
+- Monthly completion calendar
+- Achievement badges
+- Mystery-box rewards
+- Streak freezes
+- Streak recovery quests
+- Unlockable fire skins:
+  - Orange fire: starter fire
+  - Blue fire: 10-day streak
+  - Purple fire: 50-day streak
+  - White fire: 100-day streak
+  - Rainbow fire: 1,000-day streak
+- Local friend challenge
+- Optional check-in sound effect
 
-No installation or server is needed for this version.
+## Files
 
-## How the project is organized
+- `index.html` — the structure and content of the website
+- `styles.css` — the colors, layout, mobile design, and animations
+- `app.js` — signup, login, streak rules, rewards, and interactions
+- `.gitignore` — files Git should ignore
 
-- `index.html` — the page structure: forms, buttons, cards, and text.
-- `styles.css` — all visual design: colors, layout, responsive phone styles, and animations.
-- `app.js` — the behavior: signup, login, streak rules, and saved data.
+## How to use it
 
-## The key streak rule
+1. Keep all files in the same folder.
+2. Open `index.html` in a browser.
+3. Create an account.
+4. Set a goal and check in each day.
 
-When a person clicks the check-in button, the app saves today's date. When the page is loaded again, it compares that saved date to today:
+## How data is saved
 
-```js
-if (currentUser.lastCheckin === todayKey()) return;
-```
+This version uses browser `localStorage`.
 
-That line stops a second check-in on the same day. If the previous check-in was yesterday, the streak increases by one. Otherwise, it starts back at one:
+That means:
 
-```js
-currentUser.streak = currentUser.lastCheckin && dayDiff(currentUser.lastCheckin, todayKey()) === 1
-  ? currentUser.streak + 1
-  : 1;
-```
+- Your accounts are saved in the browser.
+- Your streak stays saved after refreshing.
+- Data is only available on the same browser and device.
+- Passwords are not secure enough for a real public app yet.
 
-## Where accounts are saved
+## Future improvements
 
-This first version uses your browser's `localStorage`, so it is great for learning and prototypes. The accounts only exist in the specific browser on the specific device you used. A real public website should use a backend and securely hash passwords instead.
+For a real public version, add:
 
-## Next improvements to try
-
-1. Add a habit name (for example, “Read 10 pages”).
-2. Let users choose an avatar.
-3. Add a calendar history view.
-4. Connect the site to a real database and authentication service.
+- A database
+- Secure password hashing
+- Real friend accounts
+- Shared friend challenges
+- Leaderboards
+- Cloud backups
+- Email login and password reset
