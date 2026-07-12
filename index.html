@@ -6,87 +6,84 @@
   <title>Kindle — Daily Streaks</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <section class="auth" id="authScreen">
-    <div class="auth-art">
+  <section class="auth-screen" id="authScreen">
+    <aside class="auth-art">
       <div class="brand"><span>♨</span> kindle</div>
-      <h1>Keep your<br><em>spark</em> alive.</h1>
-      <p>Small promises add up. Show up for yourself, one day at a time.</p>
-      <div class="auth-flame">🔥</div>
-    </div>
+      <div>
+        <p class="eyebrow">BUILD BETTER DAYS</p>
+        <h1>Keep your<br><em>spark</em> alive.</h1>
+        <p>Show up for yourself, one day at a time.</p>
+      </div>
+      <div class="giant-flame">🔥</div>
+    </aside>
 
-    <div class="auth-panel">
-      <div class="form-card">
+    <main class="auth-panel">
+      <div class="auth-card">
         <div id="loginView">
-          <p class="eyebrow">WELCOME BACK</p>
+          <p class="eyebrow orange">WELCOME BACK</p>
           <h2>Good to see you.</h2>
-          <p class="subtitle">Sign in to continue your streak.</p>
+          <p class="muted">Log in to continue your streak.</p>
 
           <form id="loginForm">
-            <label>Username</label>
-            <input id="loginUsername" required placeholder="Enter your username">
-
+            <label>Email</label>
+            <input id="loginEmail" type="email" required placeholder="you@example.com">
             <label>Password</label>
-            <input id="loginPassword" type="password" required placeholder="Enter your password">
-
+            <input id="loginPassword" type="password" required placeholder="Your password">
             <p class="error" id="loginError"></p>
             <button class="primary">Log in →</button>
           </form>
 
-          <p class="switch">New here? <button type="button" class="link-button" id="showSignup">Create an account</button></p>
+          <p class="switch">New here? <button type="button" class="text-button" id="showSignup">Create an account</button></p>
         </div>
 
         <div id="signupView" class="hidden">
-          <p class="eyebrow">START TODAY</p>
+          <p class="eyebrow orange">START TODAY</p>
           <h2>Make it count.</h2>
-          <p class="subtitle">Create your account and begin your first streak.</p>
+          <p class="muted">Create your profile and begin your streak.</p>
 
           <form id="signupForm">
-            <label>Choose a username</label>
-            <input id="signupUsername" minlength="3" required placeholder="At least 3 characters">
-
-            <label>Create a password</label>
-            <input id="signupPassword" type="password" minlength="4" required placeholder="At least 4 characters">
-
+            <label>Username</label>
+            <input id="signupUsername" required minlength="3" placeholder="Unique username">
+            <label>Email</label>
+            <input id="signupEmail" type="email" required placeholder="you@example.com">
+            <label>Password</label>
+            <input id="signupPassword" type="password" required minlength="6" placeholder="At least 6 characters">
             <p class="error" id="signupError"></p>
             <button class="primary">Create account →</button>
           </form>
 
-          <p class="switch">Already have an account? <button type="button" class="link-button" id="showLogin">Log in</button></p>
+          <p class="switch">Already have an account? <button type="button" class="text-button" id="showLogin">Log in</button></p>
         </div>
       </div>
-    </div>
+    </main>
   </section>
 
-  <section id="appScreen" class="hidden">
+  <section class="app hidden" id="appScreen">
     <header>
       <div class="brand"><span>♨</span> kindle</div>
-
-      <div class="header-right">
-        <span id="todayText"></span>
-        <button class="quiet-button" id="soundButton">Sound: on</button>
-        <button class="quiet-button" id="logoutButton">Log out</button>
-      </div>
+      <nav>
+        <button class="nav-button active" data-page="home">Today</button>
+        <button class="nav-button" data-page="friends">Friends</button>
+        <button class="nav-button" data-page="profile">Profile</button>
+      </nav>
+      <button class="logout" id="logoutButton">Log out</button>
     </header>
 
-    <main class="dashboard">
-      <div class="greeting">
-        <p class="eyebrow">YOUR DAILY RITUAL</p>
-        <h1>Hey, <span id="nameText">friend</span> ✦</h1>
-        <p>One small action is all it takes to keep your spark burning.</p>
-      </div>
+    <main class="container">
+      <section id="homePage">
+        <div class="welcome">
+          <div>
+            <p class="eyebrow orange">YOUR DAILY RITUAL</p>
+            <h1>Hey, <span id="displayName">friend</span> ✦</h1>
+            <p id="goalText">One small action is all it takes.</p>
+          </div>
+          <div class="mini-profile" id="openMyProfile"></div>
+        </div>
 
-      <div class="tabs">
-        <button class="tab active" data-tab="today">Today</button>
-        <button class="tab" data-tab="journey">My journey</button>
-      </div>
-
-      <section id="todayTab">
         <section class="streak-card">
-          <div class="main-flame">🔥</div>
-
-          <div class="streak-content">
+          <div class="streak-flame" id="streakFlame">🔥</div>
+          <div>
             <p class="eyebrow">CURRENT STREAK</p>
             <div class="streak-number"><span id="streakNumber">0</span> <small>days</small></div>
             <p id="streakMessage">Your streak is waiting for you.</p>
@@ -95,111 +92,141 @@
 
         <section class="card checkin-card">
           <div>
-            <p class="eyebrow">TODAY'S CHECK-IN</p>
-            <h3 id="checkinTitle">Ready when you are.</h3>
-            <p id="checkinDescription">Take a moment and add today to your story.</p>
+            <p class="eyebrow orange">TODAY'S CHECK-IN</p>
+            <h2 id="checkinHeading">Ready when you are.</h2>
+            <p class="muted" id="checkinText">Add today to your story.</p>
           </div>
-
-          <button class="checkin" id="checkinButton">🔥 Add to daily streak</button>
+          <button class="checkin-button" id="checkinButton">🔥 Check in today</button>
         </section>
 
-        <section class="card hidden recovery" id="recoveryCard">
-          <p class="eyebrow">STREAK RECOVERY QUEST</p>
-          <h3>Your spark needs a boost.</h3>
-          <p class="small-text">Take three deep breaths, then complete this tiny quest to restore your streak.</p>
-          <button id="questButton">I completed the quest ✦</button>
-        </section>
-
-        <section class="two-column">
+        <section class="grid-two">
           <article class="card">
-            <p class="eyebrow">YOUR LEVEL</p>
-            <h3>Level <span id="levelNumber">1</span></h3>
-            <div class="progress-bar"><i id="xpBar"></i></div>
-            <p class="small-text"><span id="xpNumber">0</span> XP — every check-in earns 25 XP.</p>
+            <p class="eyebrow orange">YOUR LEVEL</p>
+            <h2>Level <span id="levelNumber">1</span></h2>
+            <div class="progress"><i id="xpBar"></i></div>
+            <p class="muted"><span id="xpNumber">0</span> XP · 25 XP per check-in</p>
           </article>
 
           <article class="card">
-            <p class="eyebrow">STREAK FREEZES</p>
-            <h3><span id="freezeNumber">0</span> ❄️ available</h3>
-            <p class="small-text">A freeze protects your streak after a missed day.</p>
+            <p class="eyebrow orange">FIRE REWARDS</p>
+            <h2 id="fireName">Classic fire</h2>
+            <p class="muted">Unlock blue at 10, purple at 50, white at 100, and rainbow at 1,000 days.</p>
           </article>
         </section>
 
         <section class="card">
-          <p class="eyebrow">YOUR DAILY GOAL</p>
-          <h3>What are you showing up for?</h3>
-
-          <div class="inline-form">
-            <input id="goalInput" placeholder="Example: Read for 10 minutes">
-            <button id="saveGoal">Save</button>
-          </div>
-        </section>
-
-        <section class="card">
-          <p class="eyebrow">HOW DO YOU FEEL TODAY?</p>
-          <h3>A quick mood check-in</h3>
-
-          <div class="moods" id="moodButtons">
-            <button class="mood" data-mood="😞">😞</button>
-            <button class="mood" data-mood="😐">😐</button>
-            <button class="mood" data-mood="🙂">🙂</button>
-            <button class="mood" data-mood="😄">😄</button>
-            <button class="mood" data-mood="🤩">🤩</button>
-          </div>
-        </section>
-
-        <section class="card">
-          <p class="eyebrow">TODAY'S NOTE</p>
-          <h3>What did you do for yourself?</h3>
-
-          <textarea id="dailyNote" rows="3" placeholder="Write one small win from today..."></textarea>
-          <button class="quiet-button note-button" id="saveNote">Save note</button>
-        </section>
-
-        <section class="card">
-          <p class="eyebrow">THIS WEEK</p>
-          <h3>Your rhythm</h3>
-          <div class="week" id="week"></div>
-        </section>
-
-        <section id="surpriseBox" class="surprise hidden"></section>
-      </section>
-
-      <section id="journeyTab" class="hidden">
-        <section class="card">
-          <p class="eyebrow">FIRE COLLECTION</p>
-          <h3>Equip your reward</h3>
-          <div class="fires" id="fires"></div>
-        </section>
-
-        <section class="card">
-          <p class="eyebrow">ACHIEVEMENTS</p>
-          <h3>Your badges</h3>
-          <div class="badges" id="badges"></div>
-        </section>
-
-        <section class="card">
-          <p class="eyebrow">MONTHLY CALENDAR</p>
-          <h3>Your history</h3>
+          <p class="eyebrow orange">THIS MONTH</p>
+          <h2>Your check-in history</h2>
           <div class="calendar" id="calendar"></div>
         </section>
+      </section>
+
+      <section id="friendsPage" class="hidden">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow orange">YOUR COMMUNITY</p>
+            <h1>Friends</h1>
+          </div>
+        </div>
 
         <section class="card">
-          <p class="eyebrow">FRIEND CHALLENGE</p>
-          <h3 id="friendTitle">Challenge a friend</h3>
-          <p class="small-text" id="friendText">Set a friend name and aim to both check in five days this week.</p>
-
-          <div class="inline-form">
-            <input id="friendName" placeholder="Friend's name">
-            <button id="saveFriend">Save</button>
+          <p class="eyebrow orange">FIND PEOPLE</p>
+          <h2>Search by username</h2>
+          <div class="search-row">
+            <input id="searchUsername" placeholder="Search a username">
+            <button class="dark-button" id="searchButton">Search</button>
           </div>
+          <div class="search-results" id="searchResults"></div>
+        </section>
+
+        <section class="card">
+          <p class="eyebrow orange">FRIEND REQUESTS</p>
+          <h2>Waiting for your answer</h2>
+          <div class="people-list" id="requestsList"></div>
+        </section>
+
+        <section class="card">
+          <p class="eyebrow orange">YOUR FRIENDS</p>
+          <h2>Keep each other going</h2>
+          <div class="people-list" id="friendsList"></div>
+        </section>
+      </section>
+
+      <section id="profilePage" class="hidden">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow orange">YOUR SPACE</p>
+            <h1>My profile</h1>
+          </div>
+        </div>
+
+        <section class="profile-preview" id="myProfilePreview"></section>
+
+        <section class="card">
+          <p class="eyebrow orange">CUSTOMIZE YOUR CHARACTER</p>
+          <h2>Make it yours</h2>
+
+          <div class="customizer">
+            <label>Profile background
+              <select id="profileBackground">
+                <option value="sunset">Sunset</option>
+                <option value="ocean">Ocean</option>
+                <option value="forest">Forest</option>
+                <option value="candy">Candy</option>
+              </select>
+            </label>
+
+            <label>Character color
+              <input id="avatarColor" type="color" value="#f05a2a">
+            </label>
+
+            <label>Hair
+              <select id="avatarHair">
+                <option value="short">Short</option>
+                <option value="curly">Curly</option>
+                <option value="spiky">Spiky</option>
+              </select>
+            </label>
+
+            <label>Outfit
+              <select id="avatarOutfit">
+                <option value="hoodie">Hoodie</option>
+                <option value="jacket">Jacket</option>
+                <option value="space">Space suit</option>
+              </select>
+            </label>
+
+            <label>Equipped fire
+              <select id="equippedFire">
+                <option value="orange">Classic fire</option>
+                <option value="blue">Blue fire — 10 days</option>
+                <option value="purple">Purple fire — 50 days</option>
+                <option value="white">White fire — 100 days</option>
+                <option value="rainbow">Rainbow fire — 1,000 days</option>
+              </select>
+            </label>
+          </div>
+
+          <label>Bio
+            <textarea id="profileBio" rows="3" placeholder="Tell friends a little about yourself."></textarea>
+          </label>
+
+          <button class="primary save-profile" id="saveProfile">Save profile</button>
         </section>
       </section>
     </main>
   </section>
 
+  <div class="modal hidden" id="profileModal">
+    <div class="modal-box">
+      <button class="close-button" id="closeModal">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
   <div class="toast hidden" id="toast"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>
