@@ -1,7 +1,7 @@
 const SUPABASE_URL = "https://dnvobmkryzyobnxsibmk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_5fRZO99faxkHEQ_IupqSAQ_VkUFX9Oi";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = selector => document.querySelector(selector);
 
 let sessionUser = null;
@@ -14,7 +14,10 @@ function showToast(message) {
   const toast = $("#toast");
   toast.textContent = message;
   toast.classList.remove("hidden");
-  setTimeout(() => toast.classList.add("hidden"), 3500);
+
+  setTimeout(() => {
+    toast.classList.add("hidden");
+  }, 3500);
 }
 
 function setError(id, message) {
@@ -41,13 +44,21 @@ function fireName(fire) {
 
 function avatarHTML(person, className = "") {
   return `
-    <div class="avatar ${person.avatar_hair || "short"} ${person.avatar_outfit || "hoodie"} ${className}"
-      style="--avatar-color: ${person.avatar_color || "#f05a2a"}"></div>
+    <div
+      class="avatar ${person.avatar_hair || "short"} ${person.avatar_outfit || "hoodie"} ${className}"
+      style="--avatar-color: ${person.avatar_color || "#f05a2a"}"
+    ></div>
   `;
 }
 
+function localDate() {
+  const date = new Date();
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 async function loadProfile() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("profiles")
     .select("*")
     .eq("id", sessionUser.id)
@@ -62,7 +73,7 @@ async function loadProfile() {
 }
 
 async function loadCheckins() {
-  const { data } = await supabase
+  const { data } = await supabaseClient
     .from("checkins")
     .select("checkin_date")
     .eq("user_id", sessionUser.id);
@@ -71,39 +82,51 @@ async function loadCheckins() {
 }
 
 async function loadFriends() {
-  const { data } = await supabase
+  const { data } = await supabaseClient
     .from("friend_requests")
     .select("*")
     .or(`requester_id.eq.${sessionUser.id},receiver_id.eq.${sessionUser.id}`);
 
   const allRequests = data || [];
+
   const ids = [...new Set(
     allRequests.map(item =>
-      item.requester_id === sessionUser.id ? item.receiver_id : item.requester_id
+      item.requester_id === sessionUser.id
+        ? item.receiver_id
+        : item.requester_id
     )
   )];
 
-  let profiles = [];
+  let otherProfiles = [];
 
   if (ids.length) {
-    const result = await supabase
+    const { data: profiles } = await supabaseClient
       .from("profiles")
       .select("*")
       .in("id", ids);
 
-    profiles = result.data || [];
+    otherProfiles = profiles || [];
   }
 
-  const findProfile = id => profiles.find(item => item.id === id);
+  const findProfile = id => otherProfiles.find(item => item.id === id);
 
   friends = allRequests
     .filter(item => item.status === "accepted")
-    .map(item => findProfile(item.requester_id === sessionUser.id ? item.receiver_id : item.requester_id))
+    .map(item => {
+      const friendId = item.requester_id === sessionUser.id
+        ? item.receiver_id
+        : item.requester_id;
+
+      return findProfile(friendId);
+    })
     .filter(Boolean);
 
   requests = allRequests
     .filter(item => item.status === "pending" && item.receiver_id === sessionUser.id)
-    .map(item => ({ ...item, person: findProfile(item.requester_id) }))
+    .map(item => ({
+      ...item,
+      person: findProfile(item.requester_id)
+    }))
     .filter(item => item.person);
 }
 
@@ -134,15 +157,21 @@ function render() {
     ? "You showed up today. Amazing work!"
     : "Your spark is ready for today.";
 
-  $("#checkinHeading").textContent = checkedToday ? "You did it today!" : "Ready when you are.";
+  $("#checkinHeading").textContent = checkedToday
+    ? "You did it today!"
+    : "Ready when you are.";
+
   $("#checkinText").textContent = checkedToday
     ? "Come back tomorrow to protect your streak."
     : "Take a moment and add today to your story.";
 
   $("#checkinButton").disabled = checkedToday;
-  $("#checkinButton").textContent = checkedToday ? "✓ Today is complete" : "🔥 Check in today";
+  $("#checkinButton").textContent = checkedToday
+    ? "✓ Today is complete"
+    : "🔥 Check in today";
 
   $("#openMyProfile").innerHTML = avatarHTML(profile);
+
   renderCalendar();
   renderFriends();
   renderProfileEditor();
@@ -153,26 +182,38 @@ function renderCalendar() {
   const year = now.getFullYear();
   const month = now.getMonth();
   const days = new Date(year, month + 1, 0).getDate();
-  const dates = checkins.map(item => item.checkin_date);
+
+  const checkedDates = checkins.map(item => item.checkin_date);
 
   $("#calendar").innerHTML = Array.from({ length: days }, (_, index) => {
     const day = index + 1;
+
     const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-    return `<div class="calendar-day ${dates.includes(date) ? "done" : ""}">${day}</div>`;
+    return `
+      <div class="calendar-day ${checkedDates.includes(date) ? "done" : ""}">
+        ${day}
+      </div>
+    `;
   }).join("");
 }
 
-function personRow(person, buttonText, buttonAction) {
+function personRow(person, buttonText = "", buttonAction = "") {
   return `
     <article class="person-row">
       ${avatarHTML(person, "person-avatar")}
+
       <div class="person-info">
         <strong>@${person.username}</strong>
         <small>${person.streak} day streak · Level ${Math.floor(person.xp / 100) + 1}</small>
       </div>
+
       <button class="small-button" data-profile="${person.id}">View</button>
-      ${buttonText ? `<button class="small-button" data-action="${buttonAction}" data-id="${person.id}">${buttonText}</button>` : ""}
+
+      ${buttonText
+        ? `<button class="small-button" data-action="${buttonAction}" data-id="${person.id}">${buttonText}</button>`
+        : ""
+      }
     </article>
   `;
 }
@@ -191,6 +232,7 @@ function renderProfileEditor() {
   const fire = profile.equipped_fire || "orange";
 
   $("#myProfilePreview").className = `profile-preview bg-${profile.profile_background}`;
+
   $("#myProfilePreview").innerHTML = `
     ${avatarHTML(profile)}
     <h2>@${profile.username}</h2>
@@ -206,13 +248,8 @@ function renderProfileEditor() {
   $("#profileBio").value = profile.bio;
 }
 
-function localDate() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 async function checkIn() {
-  const { data, error } = await supabase.rpc("check_in_today");
+  const { data, error } = await supabaseClient.rpc("check_in_today");
 
   if (error) {
     showToast(error.message);
@@ -233,7 +270,7 @@ async function searchUsers() {
 
   if (!username) return;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("profiles")
     .select("*")
     .ilike("username", `%${username}%`)
@@ -251,7 +288,7 @@ async function searchUsers() {
 }
 
 async function sendFriendRequest(personId) {
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("friend_requests")
     .insert({
       requester_id: sessionUser.id,
@@ -262,7 +299,7 @@ async function sendFriendRequest(personId) {
 }
 
 async function acceptRequest(requestId) {
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("friend_requests")
     .update({ status: "accepted" })
     .eq("id", requestId);
@@ -280,7 +317,7 @@ async function openProfile(id) {
   let person = friends.find(friend => friend.id === id);
 
   if (!person) {
-    const { data } = await supabase
+    const { data } = await supabaseClient
       .from("profiles")
       .select("*")
       .eq("id", id)
@@ -305,6 +342,7 @@ async function openProfile(id) {
 
 async function saveProfile() {
   const chosenFire = $("#equippedFire").value;
+
   const requiredStreak = {
     orange: 0,
     blue: 10,
@@ -327,7 +365,7 @@ async function saveProfile() {
     bio: $("#profileBio").value.trim()
   };
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("profiles")
     .update(updates)
     .eq("id", sessionUser.id);
@@ -343,23 +381,27 @@ async function saveProfile() {
 
 $("#loginForm").onsubmit = async event => {
   event.preventDefault();
+
   setError("#loginError", "");
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { error } = await supabaseClient.auth.signInWithPassword({
     email: $("#loginEmail").value.trim(),
     password: $("#loginPassword").value
   });
 
-  if (error) setError("#loginError", error.message);
+  if (error) {
+    setError("#loginError", error.message);
+  }
 };
 
 $("#signupForm").onsubmit = async event => {
   event.preventDefault();
+
   setError("#signupError", "");
 
   const username = $("#signupUsername").value.trim();
 
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseClient
     .from("profiles")
     .select("username")
     .eq("username", username)
@@ -370,7 +412,7 @@ $("#signupForm").onsubmit = async event => {
     return;
   }
 
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await supabaseClient.auth.signUp({
     email: $("#signupEmail").value.trim(),
     password: $("#signupPassword").value,
     options: {
@@ -402,13 +444,22 @@ $("#checkinButton").onclick = checkIn;
 $("#searchButton").onclick = searchUsers;
 $("#saveProfile").onclick = saveProfile;
 $("#openMyProfile").onclick = () => showPage("profile");
-$("#closeModal").onclick = () => $("#profileModal").classList.add("hidden");
+
+$("#closeModal").onclick = () => {
+  $("#profileModal").classList.add("hidden");
+};
+
+$("#logoutButton").onclick = () => {
+  supabaseClient.auth.signOut();
+};
 
 $("#searchResults").onclick = async event => {
   const profileButton = event.target.closest("[data-profile]");
   const actionButton = event.target.closest("[data-action]");
 
-  if (profileButton) await openProfile(profileButton.dataset.profile);
+  if (profileButton) {
+    await openProfile(profileButton.dataset.profile);
+  }
 
   if (actionButton?.dataset.action.startsWith("add:")) {
     await sendFriendRequest(actionButton.dataset.id);
@@ -419,22 +470,28 @@ $("#requestsList").onclick = async event => {
   const profileButton = event.target.closest("[data-profile]");
   const actionButton = event.target.closest("[data-action]");
 
-  if (profileButton) await openProfile(profileButton.dataset.profile);
+  if (profileButton) {
+    await openProfile(profileButton.dataset.profile);
+  }
 
   if (actionButton?.dataset.action.startsWith("accept:")) {
-    await acceptRequest(actionButton.dataset.action.split(":")[1]);
+    const requestId = actionButton.dataset.action.split(":")[1];
+    await acceptRequest(requestId);
   }
 };
 
 $("#friendsList").onclick = async event => {
   const button = event.target.closest("[data-profile]");
-  if (button) await openProfile(button.dataset.profile);
+
+  if (button) {
+    await openProfile(button.dataset.profile);
+  }
 };
 
-$("#logoutButton").onclick = () => supabase.auth.signOut();
-
 document.querySelectorAll(".nav-button").forEach(button => {
-  button.onclick = () => showPage(button.dataset.page);
+  button.onclick = () => {
+    showPage(button.dataset.page);
+  };
 });
 
 function showPage(page) {
@@ -447,22 +504,26 @@ function showPage(page) {
   $("#profilePage").classList.toggle("hidden", page !== "profile");
 }
 
-supabase.auth.onAuthStateChange(async (_event, session) => {
+supabaseClient.auth.onAuthStateChange(async (_event, session) => {
   sessionUser = session?.user || null;
 
   $("#authScreen").classList.toggle("hidden", Boolean(sessionUser));
   $("#appScreen").classList.toggle("hidden", !sessionUser);
 
-  if (sessionUser) await refreshApp();
+  if (sessionUser) {
+    await refreshApp();
+  }
 });
 
 (async () => {
-  const { data } = await supabase.auth.getSession();
+  const { data } = await supabaseClient.auth.getSession();
 
   if (data.session) {
     sessionUser = data.session.user;
+
     $("#authScreen").classList.add("hidden");
     $("#appScreen").classList.remove("hidden");
+
     await refreshApp();
   }
 })();
